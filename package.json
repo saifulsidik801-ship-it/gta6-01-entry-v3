@@ -1,0 +1,1 @@
+{"description":"MARISOL BAY — take the city, district by district. An original open-world crime game for make.fun gta6-01.","engines":{"node":">=22.18"},"license":"MIT","name":"gta6-01-entry-v3","private":true,"scripts":{"check":"node main.ts","serve":"node serve.ts"},"type":"module","version":"3.0.0"}

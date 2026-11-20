@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>MARISOL BAY — take the city, district by district</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a0f24; font-family: Arial, Helvetica, sans-serif; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; width: 100%; height: 100%; }
+  .hidden { display: none !important; }
+  /* HUD is authored in an 800x480 space and scaled to the viewport. */
+  #hud-scale { position: fixed; left: 50%; top: 50%; width: 800px; height: 480px; transform-origin: center center; pointer-events: none; z-index: 5; }
+  #hud { position: absolute; inset: 0; color: #fff; font-size: 13px; }
+  .panel { background: rgba(10, 13, 18, 0.84); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 7px 9px; }
+  .acc { color: #ffc93c; }
+  .grn { color: #3ddc5a; }
+  .red { color: #ff5a5a; }
+  .cyn { color: #35d0d8; }
+  .dim { color: #9aa5b1; }
+  .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.18); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 3px; }
+  /* mission panel, top-left */
+  #objective { position: absolute; left: 8px; top: 8px; width: 300px; border-left: 3px solid #ffc93c; }
+  #objective .m-kicker { font-size: 10px; letter-spacing: 1px; color: #ffc93c; font-weight: bold; }
+  #objective .m-title { font-size: 17px; font-weight: 900; letter-spacing: 0.5px; }
+  #objective .m-obj { font-size: 12px; color: #e8e8e8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #objective .m-row { display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; }
+  #objective .m-next { font-size: 11px; color: #9fd4ef; margin-top: 3px; }
+  #objective .m-timer { font-size: 13px; font-weight: bold; color: #ff8a5a; }
+  /* police response panel, left under mission */
+  .mb-police { position: absolute; left: 8px; top: 124px; width: 300px; border-left: 3px solid #ff5a5a; }
+  .mb-police .p-head { display: flex; justify-content: space-between; font-weight: 900; font-size: 12px; letter-spacing: 1px; }
+  .mb-police .p-row { display: flex; justify-content: space-between; font-size: 11.5px; padding: 2px 0; }
+  .mb-police .p-row .u { width: 92px; font-weight: bold; }
+  .mb-police .p-row .d { width: 52px; text-align: right; color: #cfe3ff; }
+  .tag { font-size: 9.5px; font-weight: 900; padding: 1px 5px; border-radius: 3px; color: #111; min-width: 74px; text-align: center; }
+  .tag.PURSUIT { background: #ffc93c; } .tag.RAMMING { background: #ff7a3c; } .tag.FLANKING { background: #ff9a3c; }
+  .tag.SPOTLIGHT { background: #35a8ff; color: #fff; } .tag.FIRING { background: #ff4d6d; color: #fff; }
+  .tag.ROADBLOCK { background: #ff4d4d; color: #fff; } .tag.SEARCHING { background: #b8c4d0; } .tag.CLOSING { background: #ffd23c; }
+  .mb-police .p-foot { font-size: 10.5px; color: #9aa5b1; margin-top: 3px; }
+  /* health block, left mid */
+  .mb-health { position: absolute; left: 8px; top: 262px; width: 186px; padding: 6px 8px; }
+  .mb-health .h-name { font-size: 11px; font-weight: 900; letter-spacing: 1px; }
+  .mb-health .h-row { display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 3px; }
+  .mb-health .h-row .bar { flex: 1; }
+  /* minimap, bottom-left */
+  #minimap-wrap { position: absolute; left: 8px; top: 326px; width: 156px; }
+  #minimap-wrap .mm-dist { background: rgba(10,13,18,0.84); border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; padding: 4px 7px; font-size: 11px; margin-bottom: 4px; }
+  #minimap-wrap .mm-dist b { font-size: 12px; }
+  #minimap { width: 150px; height: 104px; border-radius: 50%; border: 2px solid #35d0d8; background: #12202e; display: block; }
+  /* top-right stack */
+  .mb-topright { position: absolute; right: 8px; top: 8px; width: 236px; text-align: right; }
+  .mb-topright .t-money { font-size: 26px; font-weight: 900; color: #3ddc5a; text-shadow: 0 2px 0 rgba(0,0,0,0.5); }
+  .mb-topright .t-stars { font-size: 19px; letter-spacing: 3px; color: #ffc93c; }
+  .mb-topright .t-stars .off { color: rgba(255,255,255,0.28); }
+  .mb-topright .t-status { font-size: 11px; font-weight: 900; color: #ff5a5a; letter-spacing: 1px; }
+  .mb-topright .t-day { font-size: 11px; color: #cfe3ff; margin-top: 2px; }
+  .mb-topright .t-rank { margin-top: 5px; text-align: left; background: rgba(10,13,18,0.84); border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; padding: 5px 7px; }
+  .mb-topright .t-rank .r-line { display: flex; justify-content: space-between; font-size: 11px; font-weight: 900; }
+  .mb-topright .t-rank .bar { margin-top: 3px; }
+  .mb-topright .t-rank .r-sub { font-size: 10px; color: #9aa5b1; margin-top: 2px; }
+  .mb-airunit { margin-top: 5px; text-align: left; background: rgba(10,13,18,0.84); border: 1px solid #35a8ff; border-radius: 5px; padding: 4px 7px; font-size: 11px; font-weight: 900; color: #bfe3ff; }
+  .mb-airunit .dot { color: #35a8ff; }
+  /* weapon slots, right */
+  .mb-weapons { position: absolute; right: 8px; top: 172px; width: 312px; display: flex; gap: 4px; justify-content: flex-end; }
+  .mb-weapons .slot { width: 48px; background: rgba(10,13,18,0.84); border: 1px solid rgba(255,255,255,0.16); border-radius: 5px; padding: 2px 2px 3px; text-align: center; }
+  .mb-weapons .slot.active { border-color: #ffc93c; box-shadow: 0 0 0 1px #ffc93c; }
+  .mb-weapons .slot .n { font-size: 9px; color: #9aa5b1; text-align: left; }
+  .mb-weapons .slot .ic { font-size: 15px; line-height: 1.1; }
+  .mb-weapons .slot .nm { font-size: 9.5px; font-weight: 900; }
+  .mb-weapons .slot .am { font-size: 9.5px; color: #cfe3ff; }
+  .mb-weapons .slot.locked .nm, .mb-weapons .slot.locked .am { color: #7a8592; }
+  .mb-weapons .slot .lk { font-size: 8px; font-weight: 900; color: #ff5a5a; letter-spacing: 0.5px; }
+  .mb-weapons .slot .pr { font-size: 8px; color: #9aa5b1; }
+  /* crew cards, right mid */
+  .mb-crew { position: absolute; right: 8px; top: 236px; width: 236px; }
+  .mb-crew .c-head { font-size: 10px; font-weight: 900; letter-spacing: 1px; color: #9aa5b1; text-align: right; margin-bottom: 2px; }
+  .mb-crew .card { display: flex; gap: 7px; align-items: center; background: rgba(10,13,18,0.84); border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; padding: 3px 6px; margin-top: 3px; }
+  .mb-crew .card canvas { width: 26px; height: 26px; border-radius: 4px; flex: none; }
+  .mb-crew .card .c-name { font-size: 11px; font-weight: 900; }
+  .mb-crew .card .c-role { font-size: 10px; color: #9fd4ef; }
+  .mb-crew .card .c-key { margin-left: auto; font-size: 11px; font-weight: 900; color: #ffc93c; border: 1px solid #ffc93c; border-radius: 3px; padding: 1px 5px; }
+  /* dialog, bottom center */
+  .mb-dialog { position: absolute; left: 220px; top: 398px; width: 324px; display: flex; gap: 8px; align-items: center; padding: 7px 9px; }
+  .mb-dialog canvas { width: 40px; height: 40px; border-radius: 4px; flex: none; }
+  .mb-dialog .d-name { font-size: 11px; font-weight: 900; }
+  .mb-dialog .d-line { font-size: 12px; color: #e8e8e8; margin-top: 1px; }
+  /* radio + speed, bottom right */
+  .mb-radio { position: absolute; right: 8px; top: 378px; width: 236px; text-align: right; font-size: 11px; color: #cfe3ff; background: rgba(10,13,18,0.7); border-radius: 4px; padding: 3px 7px; }
+  .mb-speed { position: absolute; right: 8px; top: 410px; width: 236px; text-align: right; padding: 5px 9px; }
+  .mb-speed .s-car { font-size: 12px; font-weight: 900; color: #ffc93c; }
+  .mb-speed .s-num { font-size: 30px; font-weight: 900; line-height: 1; }
+  .mb-speed .s-num small { font-size: 12px; color: #9aa5b1; }
+  .mb-speed .s-cond { display: flex; align-items: center; gap: 6px; font-size: 10px; margin-top: 3px; }
+  .mb-speed .s-cond .bar { flex: 1; }
+  /* event banner, top center */
+  .mb-shot-popup { position: absolute; left: 330px; top: 8px; width: 210px; text-align: center; background: rgba(120,10,10,0.88); border: 1px solid #ff5a5a; border-radius: 5px; padding: 5px 8px; font-size: 11px; font-weight: 900; }
+  .mb-shot-popup .sub { font-size: 10px; font-weight: normal; color: #ffd9d9; }
+  /* full-screen menu overlays (inside the 800x480 scaler) */
+  .screen { position: absolute; inset: 0; background: rgba(38,48,61,0.97); color: #fff; padding: 14px 18px; overflow: hidden; }
+  .screen h1 { font-size: 30px; font-weight: 900; letter-spacing: 1px; }
+  .screen h1 .sub { font-size: 14px; color: #35d0d8; letter-spacing: 3px; }
+  .tabs { display: flex; gap: 6px; margin: 8px 0 10px; }
+  .tabs span { font-size: 11px; font-weight: 900; letter-spacing: 1px; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cfe3ff; }
+  .tabs span.on { background: #ff7a3c; color: #111; }
+  /* map screen */
+  #screen-map .map-grid { display: flex; gap: 14px; }
+  #screen-map .map-left { width: 196px; flex: none; }
+  #screen-map .ring { text-align: center; margin-bottom: 8px; }
+  #screen-map .ring .pct { font-size: 26px; font-weight: 900; }
+  #screen-map .check { font-size: 11px; }
+  #screen-map .check .row { display: flex; justify-content: space-between; padding: 2.5px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+  #screen-map .map-mid { flex: 1; position: relative; }
+  #screen-map .map-canvas { width: 100%; height: 330px; border-radius: 8px; border: 2px solid #2a3442; display: block; }
+  #screen-map .map-foot { font-size: 11px; color: #9fd4ef; margin-top: 5px; }
+  #screen-map .map-right { width: 190px; flex: none; font-size: 11px; }
+  #screen-map .map-right h3 { font-size: 13px; color: #ffc93c; margin: 6px 0 3px; }
+  #screen-map .map-right .row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.07); }
+  #screen-map .save-slot { background: rgba(255,255,255,0.07); border-radius: 5px; padding: 5px 7px; margin-top: 5px; font-size: 11px; }
+  #screen-map .foot { position: absolute; left: 18px; bottom: 10px; font-size: 11px; color: #9aa5b1; }
+  /* garage overlay */
+  .mb-garage { position: absolute; inset: 0; color: #fff; pointer-events: auto; }
+  .mb-garage .g-top { position: absolute; left: 0; right: 0; top: 0; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: rgba(8,10,14,0.92); border-bottom: 1px solid rgba(255,255,255,0.12); }
+  .mb-garage .g-top h2 { font-size: 18px; font-weight: 900; color: #ffc93c; }
+  .mb-garage .g-top .g-sub { font-size: 11px; color: #9fd4ef; }
+  .mb-garage .g-top .g-cash { margin-left: auto; font-size: 19px; font-weight: 900; color: #3ddc5a; }
+  .mb-garage-panel { position: absolute; right: 10px; top: 50px; width: 348px; background: rgba(10,13,18,0.93); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 7px 11px; }
+  .mb-garage-panel h3 { font-size: 14px; color: #ffc93c; letter-spacing: 1px; }
+  .mb-garage-panel .g-tabs { font-size: 11px; font-weight: 900; margin: 2px 0 6px; }
+  .mb-garage-panel .g-tabs .on { background: #ffc93c; color: #111; padding: 2px 8px; border-radius: 3px; }
+  .mb-garage-panel .g-sec { font-size: 11px; font-weight: 900; color: #ff8a5a; letter-spacing: 1px; margin: 5px 0 2px; }
+  .mb-garage-panel .u-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 11.5px; padding: 2px 4px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+  .mb-garage-panel .u-row.sel { background: rgba(255,201,60,0.16); outline: 1px solid #ffc93c; border-radius: 4px; }
+  .mb-garage-panel .u-row .u-fx { font-size: 10px; color: #9aa5b1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mb-garage-panel .u-row .u-price { font-weight: 900; color: #3ddc5a; white-space: nowrap; }
+  .mb-garage-panel .u-row .u-own { font-weight: 900; color: #3ddc5a; white-space: nowrap; }
+  .mb-garage-panel .u-row .u-lock { font-weight: 900; color: #ff5a5a; white-space: nowrap; }
+  .mb-garage-panel .g-desc { font-size: 10.5px; color: #e8e8e8; margin-top: 5px; background: rgba(255,255,255,0.06); border-radius: 5px; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mb-garage-panel .g-desc b { color: #ffc93c; }
+  .mb-garage-carcard { position: absolute; left: 12px; bottom: 52px; width: 330px; background: rgba(10,13,18,0.9); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 8px 11px; }
+  .mb-garage-carcard .cc-name { font-size: 15px; font-weight: 900; }
+  .mb-garage-carcard .cc-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; margin-top: 4px; }
+  .mb-garage-carcard .cc-row .bar { flex: 1; }
+  .mb-garage-carcard .cc-row .lab { width: 86px; color: #9aa5b1; }
+  .mb-garage .g-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: rgba(8,10,14,0.92); border-top: 1px solid rgba(255,255,255,0.12); font-size: 11.5px; font-weight: 900; }
+  .mb-garage .g-bottom .btn { background: rgba(255,255,255,0.12); border-radius: 5px; padding: 6px 12px; }
+  .mb-garage .g-bottom .btn.go { background: #3ddc5a; color: #06210c; }
+  .mb-garage .g-bottom .btn.eq { background: #ffc93c; color: #241a00; }
+  /* pause panel */
+  .mb-panel[data-panel="pause"] { position: absolute; left: 190px; top: 70px; width: 420px; padding: 12px 14px; }
+  .mb-panel[data-panel="pause"] h2 { font-size: 18px; margin-bottom: 6px; }
+  .mb-panel[data-panel="pause"] .mission-row { font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .mb-panel[data-panel="pause"] .p-stats { font-size: 11px; color: #cfe3ff; margin-top: 8px; line-height: 1.6; }
+  /* start overlay */
+  #start { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 0 60px; color: #fff; background: linear-gradient(180deg, rgba(20,8,32,0.25) 0%, rgba(20,8,32,0.55) 70%, rgba(20,8,32,0.85) 100%); }
+  #start .t-kick { font-size: 13px; letter-spacing: 4px; color: #35d0d8; font-weight: 900; }
+  #start h1 { font-size: 64px; font-weight: 900; line-height: 0.95; background: linear-gradient(180deg, #ffe9a8, #ff7a3c 60%, #ff4d6d); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 4px 24px rgba(0,0,0,0.35); }
+  #start .t-sub { font-size: 16px; color: #ffe9a8; letter-spacing: 2px; margin-top: 4px; }
+  #start .t-tag { font-size: 12px; color: #e8e8e8; margin-top: 10px; max-width: 420px; line-height: 1.5; }
+  #start .t-menu { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+  #start button { pointer-events: auto; cursor: pointer; text-align: left; font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #fff; background: rgba(10,13,18,0.75); border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 9px 18px; width: 260px; }
+  #start button.primary { background: #ff7a3c; color: #1a0f00; border-color: #ff7a3c; }
+  #start .t-foot { position: absolute; left: 60px; bottom: 22px; font-size: 11px; color: #cfe3ff; }
+  #toast { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); background: rgba(10,13,18,0.9); border: 1px solid #ffc93c; border-radius: 5px; padding: 6px 12px; font-size: 12px; font-weight: 900; color: #ffe9a8; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud-scale">
+  <div id="hud" class="hidden">
+    <div id="objective" class="panel">
+      <div class="m-kicker" id="m-kicker">MISSION 3 &middot; DOWNTOWN HEAT</div>
+      <div class="m-title" id="m-title">LOSE THE PATROL</div>
+      <div class="m-obj" id="m-obj">Lose the patrol on the downtown streets</div>
+      <div class="m-row"><span id="m-stage">STAGE 3/4</span><span class="m-timer" id="m-timer"></span></div>
+      <div class="bar"><i id="m-stagebar" style="width:75%;background:#ffc93c"></i></div>
+      <div class="m-next" id="m-next">NEXT &nbsp;Vanish through the Lantern Mile alleys</div>
+    </div>
+    <div class="mb-police panel">
+      <div class="p-head"><span>POLICE RESPONSE</span><span id="p-count">5 UNITS</span></div>
+      <div id="p-rows"></div>
+      <div class="p-foot" id="p-foot">IN SIGHT &middot; CLOSEST 7 M</div>
+    </div>
+    <div class="mb-health panel">
+      <div class="h-name" id="h-name">MILO KADE</div>
+      <div class="h-row"><span>HEALTH</span><div class="bar"><i id="h-hp" style="width:100%;background:#3ddc5a"></i></div><span id="h-hp-n">100</span></div>
+      <div class="h-row"><span>ARMOUR</span><div class="bar"><i id="h-ar" style="width:55%;background:#35a8ff"></i></div><span id="h-ar-n">55</span></div>
+    </div>
+    <div id="minimap-wrap">
+      <div class="mm-dist"><b id="mm-dist">DOWNTOWN</b> &middot; <span id="mm-street">Harbor Ave</span><br><span id="mm-stand" class="cyn">NEUTRAL &middot; 58</span></div>
+      <canvas id="minimap" width="300" height="208"></canvas>
+    </div>
+    <div class="mb-topright">
+      <div class="t-money" id="t-money">$18,450</div>
+      <div class="t-stars" id="t-stars"></div>
+      <div class="t-status" id="t-status">IN SIGHT</div>
+      <div class="t-day" id="t-day">DAY 9 &middot; 18:40</div>
+      <div class="t-rank">
+        <div class="r-line"><span id="t-rankname">RANK B &middot; FIXER</span><span id="t-rp">3,900 / 5,200 RP</span></div>
+        <div class="bar"><i id="t-rpbar" style="width:75%;background:#ffc93c"></i></div>
+        <div class="r-sub" id="t-respect">RESPECT LV 4 &middot; 290 / 550</div>
+      </div>
+      <div class="mb-airunit" id="airunit"><span class="dot">&#9679;</span> AIR UNIT &middot; HELI 1 &mdash; TRACKING</div>
+    </div>
+    <div class="mb-weapons" id="weapons"></div>
+    <div class="mb-crew"><div class="c-head">CREW &middot; ABILITIES</div><div id="crew-cards"></div></div>
+    <div class="mb-dialog panel"><canvas id="dlg-portrait" width="80" height="80"></canvas><div><div class="d-name" id="d-name">MIRA KESANG &middot; CREW &middot; DRIVER</div><div class="d-line" id="d-line">Four units on your tail, Milo.</div></div></div>
+    <div class="mb-radio" id="radio-line">&#9834; BAY 98.5 &mdash; &ldquo;Sunset Drive&rdquo; &mdash; Luna Mar</div>
+    <div class="mb-speed panel">
+      <div class="s-car" id="s-car">KITE COUPE</div>
+      <div class="s-num"><span class="mb-speed-num" id="s-num">72</span> <small>KM/H</small></div>
+      <div class="s-cond"><span>CONDITION</span><div class="bar"><i id="s-condbar" style="width:84%;background:#3ddc5a"></i></div><span id="s-cond-n">84%</span></div>
+    </div>
+    <div class="mb-shot-popup hidden" id="popup"></div>
+  </div>
+
+  <div id="screen-map" class="screen hidden">
+    <h1>MARISOL BAY <span class="sub">MAP &middot; STATS</span></h1>
+    <div class="tabs"><span class="on">MAP</span><span>STORY</span><span>STATS</span><span>CREW</span><span>SETTINGS</span><span>CONTROLS</span><span>SAVE</span></div>
+    <div class="map-grid">
+      <div class="map-left">
+        <div class="ring"><svg width="110" height="110" viewBox="0 0 110 110"><circle cx="55" cy="55" r="46" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="10"/><circle cx="55" cy="55" r="46" fill="none" stroke="#ffc93c" stroke-width="10" stroke-linecap="round" stroke-dasharray="289" stroke-dashoffset="98" transform="rotate(-90 55 55)"/><text x="55" y="52" text-anchor="middle" fill="#fff" font-size="19" font-weight="900">66.1%</text><text x="55" y="68" text-anchor="middle" fill="#9aa5b1" font-size="9">COMPLETE</text></svg></div>
+        <div class="check" id="map-checklist"></div>
+      </div>
+      <div class="map-mid">
+        <canvas class="map-canvas" id="bigmap" width="940" height="660"></canvas>
+        <div class="map-foot">Street race: Terrace Climb &middot; 0.79 km &nbsp;&middot;&nbsp; Click the map to set a waypoint</div>
+      </div>
+      <div class="map-right">
+        <h3>RANK 5 &middot; FIXER</h3>
+        <div class="row"><span>RP</span><b>3,900 / 5,200</b></div>
+        <div class="row"><span>Next</span><b>Garage: KPD Bastion</b></div>
+        <h3>CAREER</h3>
+        <div class="row"><span>Cars stolen</span><b>41</b></div>
+        <div class="row"><span>Cops escaped</span><b>12</b></div>
+        <div class="row"><span>Distance driven</span><b>48.2 km</b></div>
+        <div class="row"><span>People taken out</span><b>23</b></div>
+        <div class="row"><span>Longest jump</span><b>47 m</b></div>
+        <div class="row"><span>Crew abilities</span><b>38</b></div>
+        <div class="row"><span>Hidden by locals</span><b>9</b></div>
+        <div class="row"><span>Highest wanted</span><b>&#9733;&#9733;&#9733;&#9733;</b></div>
+        <h3>SAVE SLOTS</h3>
+        <div class="save-slot"><b>1 &middot; 66.1% &middot; Downtown</b><br>5/6 missions &middot; 15:11 &nbsp;<span class="grn">SAVE</span></div>
+        <div class="save-slot"><b>2 &middot; 32.8% &middot; Marina Row</b><br>3/6 missions &middot; 18:23 &nbsp;<span class="grn">SAVE</span></div>
+        <div class="save-slot"><b>3 &middot; EMPTY</b><br>Save at Milo&rsquo;s Loft or from the pause menu</div>
+      </div>
+    </div>
+    <div class="foot">ESC resume &middot; Q / E switch tab &middot; M close map</div>
+  </div>
+
+  <div class="mb-garage hidden" id="garage">
+    <div class="g-top"><h2>HILLSIDE GARAGE</h2><span class="g-sub">Pilar Santos &middot; mechanic &middot; &ldquo;You break it, I bill it.&rdquo;</span><span class="g-cash" id="g-cash">$18,450</span><span class="g-sub">RESPECT LV 5 &middot; TIDE BOSS</span></div>
+    <div class="mb-garage-panel" id="garage-panel"></div>
+    <div class="mb-garage-carcard" id="garage-carcard"></div>
+    <div class="g-bottom"><span class="btn">&#9664; BACK</span><span class="btn">REPAIR ALL &middot; $450</span><span style="flex:1"></span><span class="btn go">BUY</span><span class="btn eq">EQUIP</span><span class="dim" style="font-weight:normal">Click to buy &middot; Esc to leave</span></div>
+  </div>
+
+  <div class="mb-panel panel hidden" data-panel="pause" id="pause-panel">
+    <h2>PAUSED &middot; DAY 9 &middot; 18:40</h2>
+    <div id="mission-list"></div>
+    <div class="p-stats" id="pause-stats">Cash $18,450 &middot; Respect 290 &middot; Districts held 3/8 &middot; Cars stolen 41 &middot; Best wanted 4 stars &middot; Safehouses 2/3</div>
+    <div class="p-stats dim">P resume &middot; M map &middot; U garage</div>
+  </div>
+
+  <div id="start">
+    <div class="t-kick">AN ORIGINAL OPEN-WORLD CRIME STORY</div>
+    <h1>MARISOL<br>BAY</h1>
+    <div class="t-sub">TAKE THE CITY, DISTRICT BY DISTRICT</div>
+    <div class="t-tag">Milo Kade came back to Marisol Bay with nothing but a borrowed coupe and a crew that owes him. Eight districts, one patrol that never sleeps, and a helicopter that always finds you. Keyboard &amp; mouse.</div>
+    <div class="t-menu">
+      <button class="primary" id="btn-start">START &mdash; NEW GAME</button>
+      <button id="btn-continue">CONTINUE &mdash; DAY 9 &middot; 66.1%</button>
+      <button id="btn-load">LOAD GAME</button>
+      <button id="btn-controls">CONTROLS</button>
+    </div>
+    <div class="t-foot">WASD move &middot; mouse look &middot; E steal a car &middot; click to fight &middot; TAB weapons &middot; M map &middot; U garage &middot; ESC pause</div>
+  </div>
+  <div id="toast" class="hidden"></div>
+</div>
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
